@@ -1,4 +1,6 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { setIcon, App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Moment } from 'moment'
+let moment = require('moment');
 
 // Remember to rename these classes and interfaces!
 
@@ -10,23 +12,28 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	mySetting: 'default'
 }
 
-export default class MyPlugin extends Plugin {
+export default class HemeraPlugin extends Plugin {
 	settings: MyPluginSettings;
 
 	async onload() {
+		
 		await this.loadSettings();
 
 		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
+		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', async (evt: MouseEvent) => {
+
+			console.log('where does this end up???')
+
 			// Called when the user clicks the icon.
 			new Notice('This is a notice!');
+
+			// can do stuff here??
+
+			await this.makeToday()
+
 		});
 		// Perform additional things with the ribbon
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
 
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
@@ -43,25 +50,6 @@ export default class MyPlugin extends Plugin {
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				console.log(editor.getSelection());
 				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
 			}
 		});
 
@@ -89,6 +77,62 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	makeToday = async () => {
+		const files = this.app.vault.getMarkdownFiles()
+		const path = this.getDayPath(moment());
+		const today_string = this.getDayString(moment()); // make a fresh moment, cos it gets modified!
+		const yesterdayFile = this.findYesterday();
+		if(yesterdayFile === undefined){
+			new Notice('No yesterday found!');
+			return;
+		}
+
+		const yesterday = await this.app.vault.read(yesterdayFile!);
+
+		console.log([path, today_string, yesterday])
+
+
+		// https://docs.obsidian.md/Plugins/Vault
+	}
+
+	findYesterday = () => {
+		const maxDaysInPastToLook = 60;
+		let daysInPastLooked = 0;
+		const files = this.app.vault.getMarkdownFiles();
+		const paths = files.map(f => f.path)
+		let m: Moment = moment().subtract(1, 'day');
+		let path = this.getDayPath(m); // Journal/2025/Q3/Week35-wc-Aug25/08.25.MO.md
+		while(!paths.contains(path)){
+			m.subtract(1, 'day');
+			path = this.getDayPath(m);
+			daysInPastLooked++;
+			if(daysInPastLooked > maxDaysInPastToLook){
+				return;
+			}
+		}
+		return files.filter(x => x.path == path)[0];
+	}
+
+	getDayPath = (m: Moment) => {		
+		const yyyy = m.format('YYYY'); // year
+		const ww = m.format('WW'); // ISO week of year, two-digit format (eg 04)
+		const e = parseInt(m.format('E')); // ISO day of week, 1=Mon, 7=Sun
+		const q = m.format('Q'); // quarter, 1-4 as a digit
+		const today_string = this.getDayString(m); // for filename and title
+		const mondate = m.subtract(e-1, 'day').format('MMMDD'); // monday of this week
+		const path = `Journal/${yyyy}/Q${q}/Week${ww}-wc-${mondate}/${today_string}.md`
+		return path;
+	}
+
+	getDayString = (m: Moment) => {		
+		const dd = m.format('DD'); // date, two-digit format (eg 09)
+		const mm = m.format('MM'); // month, two-digit format (eg 09)
+		const ddd = m.format('ddd'); // day name
+		const day_name = ddd.substring(0,2).toUpperCase(); // first two letters, uc
+		const today_string = `${mm}.${dd}.${day_name}`; // for filename and title
+		return today_string;
+	}
 }
 
 class SampleModal extends Modal {
@@ -108,9 +152,9 @@ class SampleModal extends Modal {
 }
 
 class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	plugin: HemeraPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: HemeraPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
