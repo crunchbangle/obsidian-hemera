@@ -89,11 +89,29 @@ export default class HemeraPlugin extends Plugin {
 		}
 
 		const yesterday = await this.app.vault.read(yesterdayFile!);
+		const todos = this.extractTodos(yesterday);
 
-		console.log([path, today_string, yesterday])
+		console.log(todos)
 
 
 		// https://docs.obsidian.md/Plugins/Vault
+	}
+
+	extractTodos = (text: string) => {
+		// do this...
+		const lines = text.split("\n");
+		const done = lines.filter(x => x.contains('- [x]'));
+		const todo = lines.filter(x => x.contains('- [ ]'));
+		for(let i=0; i<lines.length; i++){
+			if(! lines[i].startsWith('> [!todo]')) continue;
+			let s = '';
+			while(lines[i].startsWith('>')){
+				s += lines[i]+"\n";
+				i++;
+			}
+			todo.push(s);
+		}
+		return {todo, done};
 	}
 
 	findYesterday = () => {
